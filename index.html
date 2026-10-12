@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ru" data-t="dark"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Квартплата</title>
+<meta name="theme-color" content="#0e1319">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1319'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%234cc9a0'%3E₽%3C/text%3E%3C/svg%3E">
+<style>
+/* Тёмная тема по умолчанию; светлая — через data-t="light" */
+:root{--bg:#0e1319;--c:#18202a;--t:#e8edf3;--m:#8b98a8;--a:#4cc9a0;--cw:#4aa8ff;--hw:#ff8a5c;--el:#f5c542;--g:#3fcf8e;--r:#ff6b6b;--b:#273140}
+:root[data-t=light]{--bg:#f2f5f8;--c:#fff;--t:#16202b;--m:#667385;--b:#dde4ec;--a:#0f9d75;--g:#128a54;--r:#d83b3b}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--t);font:15px/1.4 system-ui,sans-serif;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;max-width:720px;margin:auto}
+h1{font-size:20px;margin:0}h2{font-size:16px;margin:0 0 10px}
+main{max-width:720px;margin:auto;padding:0 16px 40px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:14px;padding:14px;margin-bottom:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.cards .card{margin:0;display:flex;flex-direction:column;gap:2px}.cards b{font-size:19px}.cards small,.cnt,label{color:var(--m)}
+.df{font-weight:600}
+.bn{background:#f5c54222;border:1px solid var(--el);border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.cnt{margin:0 0 12px}
+button{font:inherit;color:var(--t);background:var(--b);border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+button.pr{background:var(--a);color:#06231a;font-weight:700;width:100%;margin-bottom:12px}
+.ic{padding:6px 10px;margin-left:6px}.bk{margin-bottom:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+label{display:block;margin:8px 0}
+input{display:block;width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1px solid var(--b);background:var(--bg);color:var(--t);font:inherit}
+.ck{display:flex;gap:8px;align-items:center}.ck input{width:auto;margin:0}
+.tabs{display:flex;gap:6px;margin-bottom:8px}.tabs button.on{background:var(--a);color:#06231a}
+svg{width:100%;height:auto;display:block}
+.lg{display:flex;gap:14px;color:var(--m);font-size:13px}.lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+table{width:100%;border-collapse:collapse}td{padding:5px 0;border-bottom:1px solid var(--b)}td:last-child{text-align:right}
+.h{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--b)}
+.bd{background:var(--b);border-radius:20px;padding:2px 8px;font-size:12px;color:var(--m)}
+.bd.x{color:var(--r)}#gs,#um{margin:6px 0;color:var(--m)}
+</style></head><body>
+<header><h1>Квартплата</h1><div><button class="ic" id="th" onclick="theme()"></button><button class="ic" onclick="show('set')">⚙️</button></div></header>
+<main>
+<section id="home">
+  <div id="bn" class="bn" hidden></div>
+  <p id="cnt" class="cnt"></p>
+  <div id="cards" class="cards"></div>
+  <button class="pr" onclick="startAdd()">Внести показания</button>
+  <div class="card"><div class="tabs"><button id="tw" onclick="chart('w')">Вода</button><button id="te" onclick="chart('e')">Электроэнергия</button></div>
+    <svg id="ch" viewBox="0 0 360 210"></svg><div id="lg" class="lg"></div></div>
+  <div class="card" id="qr"></div>
+  <div class="card"><h2>История</h2><div id="hist"></div></div>
+</section>
+<section id="add" hidden></section>
+<section id="set" hidden></section>
+</main>
+<script>
+/* ===== Данные и настройки ===== */
+const SK='kvp_settings_v1',RK='kvp_records_v1';
+const CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'; // ЗАМЕНИТЕ НА ВАШ CLIENT ID
+const SCOPE='https://www.googleapis.com/auth/drive.appdata';
+const DEF={persons:3,limit:140,cold:2.2927,coldFull:2.5177,heat:29.2224,heatFull:147.48,norm:0.10127,sewer:1.8364,elec:0.3037,
+  account:'0400016077',service:'',url:'',labels:true,theme:'dark',gd:false,upd:0};
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
+let S={...DEF,...ld(SK,{})},R=ld(RK,[]);
+const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
+const f=n=>(+n).toFixed(2).replace('.',','),n3=n=>String(+(+n).toFixed(3)).replace('.',',');
+const pl=n=>n%10==1&&n%100!=11?'день':[2,3,4].includes(n%10)&&(n%100<10||n%100>19)?'дня':'дней';
+function persist(){localStorage.setItem(SK,JSON.stringify(S));localStorage.setItem(RK,JSON.stringify(R))}
+function save(push=1){S.upd=Date.now();persist();if(push&&S.gd)gPush().catch(()=>0)}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+const cmonth=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+
+/* ===== Расчёт: лимит воды, превышение — сначала на холодную, остаток на горячую ===== */
+function calc(m,v){
+  const [y,mo]=m.split('-'),days=new Date(y,mo,0).getDate(),lim=S.limit*S.persons*days/1000;
+  const cu=v[0].e-v[0].s,hu=v[1].e-v[1].s,eu=v[2].e-v[2].s;
+  const ex=Math.max(0,cu+hu-lim),cx=Math.min(ex,cu),hx=ex-cx;
+  const hn=S.cold+S.norm*S.heat,hf=S.coldFull+S.norm*S.heatFull; // 1 м³ горячей = вода + подогрев
+  const csum=(cu-cx)*S.cold+cx*S.coldFull,hsum=(hu-hx)*hn+hx*hf,wu=cu+hu,wsum=wu*S.sewer,esum=eu*S.elec;
+  return {m,cs:v[0].s,ce:v[0].e,cu,csum,hs:v[1].s,he:v[1].e,hu,hsum,wu,wsum,es:v[2].s,ee:v[2].e,eu,esum,lim,ex,tot:csum+hsum+wsum+esum};
+}
+
+/* ===== Навигация ===== */
+function show(v){['home','add','set'].forEach(x=>$(x).hidden=x!=v);if(v=='home')render();if(v=='set')settings()}
+function theme(t){if(t!==undefined&&typeof t=='string')S.theme=t;else S.theme=S.theme=='dark'?'light':'dark';save(0);applyTheme()}
+function applyTheme(){document.documentElement.dataset.t=S.theme;$('th').textContent=S.theme=='dark'?'☀️':'🌙';
+  document.querySelector('meta[name=theme-color]').content=S.theme=='dark'?'#0e1319':'#f2f5f8'}
+
+/* ===== Главная ===== */
+function render(){
+  const now=new Date(),day=now.getDate(),done=R.some(r=>r.m==cmonth()),L=R[R.length-1],P=R[R.length-2];
+  $('bn').hidden=!(day==24&&!done);$('bn').textContent='Сегодня 24-е: пора передать показания!';
+  $('cnt').textContent=done?'Показания за этот месяц внесены. ✅':day<=25?`До конца приёма показаний осталось ${25-day} ${pl(25-day)}`:'Приём показаний за этот месяц завершён';
+  const C=[['Холодная вода','cu','csum','м³','--cw'],['Горячая вода','hu','hsum','м³','--hw'],['Электроэнергия','eu','esum','кВт·ч','--el']];
+  $('cards').innerHTML=L?C.map(([t,u,s,un,c])=>{let d='';
+    if(P){const x=L[u]-P[u];d=`<div class="df" style="color:var(${x>0?'--r':'--g'})">${x>0?'▲':x<0?'▼':'●'} ${n3(Math.abs(x))} ${un}</div>`}
+    return `<div class="card" style="border-top:3px solid var(${c})"><small>${t}, ${L.m}</small><b>${n3(L[u])} ${un}</b><span>${f(L[s])} ₽</span>${d}</div>`}).join('')
+    :'<p class="cnt">Записей пока нет. Внесите первые показания.</p>';
+  chart(window.cm||'w');
+  // QR для оплаты ЕРИП
+  $('qr').innerHTML=S.service&&S.account?`<h2>Оплата через ЕРИП</h2><div style="max-width:200px;margin:auto">${qr(`https://pay.raschet.by/${S.service}/${S.account}`)}</div><p class="cnt" style="text-align:center;margin:8px 0 0">Лицевой счёт ${S.account}${L?`<br>К оплате: <b style="color:var(--t)">${f(L.tot)} ₽</b>`:''}</p>`
+    :'<p class="cnt" style="margin:0">Укажите код услуги ЕРИП в настройках, чтобы увидеть QR-код оплаты.</p>';
+  $('hist').innerHTML=[...R].reverse().map(r=>`<div class="h"><span>${r.m} <span class="bd ${r.ex>0?'x':''}">${r.ex>0?'сверх лимита '+n3(r.ex)+' м³':'в лимите'}</span></span><span>${f(r.tot)} ₽ <button class="ic" onclick="del('${r.m}')">✕</button></span></div>`).join('')||'<p class="cnt" style="margin:0">Пусто</p>';
+}
+function del(m){R=R.filter(r=>r.m!=m);save();render()}
+
+/* ===== График (SVG, 12 месяцев) ===== */
+function chart(mode){
+  window.cm=mode;$('tw').className=mode=='w'?'on':'';$('te').className=mode=='e'?'on':'';
+  const d=new Date(),ms=[];for(let i=11;i>=0;i--){const x=new Date(d.getFullYear(),d.getMonth()-i,1);ms.push(x.getFullYear()+'-'+pad(x.getMonth()+1))}
+  const ser=mode=='w'?[['cu','var(--cw)','Холодная, м³'],['hu','var(--hw)','Горячая, м³']]:[['eu','var(--el)','Электроэнергия, кВт·ч']];
+  const V=ms.map(m=>R.find(r=>r.m==m));
+  const mx=Math.max(1e-9,...ser.flatMap(([k])=>V.map(r=>r?r[k]:0)))*1.15;
+  const W=360,H=210,L=34,B=24,T=14,py=v=>T+(H-T-B)*(1-v/mx),px=i=>L+i*(W-L-10)/11;let s='';
+  for(let i=0;i<=4;i++){const v=mx*i/4;s+=`<line x1="${L}" x2="${W-10}" y1="${py(v)}" y2="${py(v)}" stroke="var(--b)"/><text x="${L-4}" y="${py(v)+3}" text-anchor="end" fill="var(--m)" font-size="8">${Math.round(v*10)/10}</text>`}
+  ms.forEach((m,i)=>s+=`<text x="${px(i)}" y="${H-8}" text-anchor="middle" fill="var(--m)" font-size="8">${m.slice(5)}</text>`);
+  ser.forEach(([k,c])=>{let p='';V.forEach((r,i)=>{if(r)p+=(V[i-1]?'L':'M')+px(i)+' '+py(r[k])});
+    s+=`<path d="${p}" fill="none" stroke="${c}" stroke-width="2"/>`;
+    V.forEach((r,i)=>{if(r){s+=`<circle cx="${px(i)}" cy="${py(r[k])}" r="3" fill="${c}"/>`;
+      if(S.labels)s+=`<text x="${px(i)}" y="${py(r[k])-6}" text-anchor="middle" fill="${c}" font-size="8">${n3(r[k])}</text>`}})});
+  $('ch').innerHTML=s;$('lg').innerHTML=ser.map(([,c,n])=>`<span><i style="background:${c}"></i>${n}</span>`).join('');
+}
+
+/* ===== Пошаговый ввод: холодная → горячая → электро ===== */
+const NM=[['Холодная вода','м³'],['Горячая вода','м³'],['Электроэнергия','кВт·ч']];
+let st=0,D={};
+function startAdd(){const l=R[R.length-1];D={m:cmonth(),v:[{s:l?l.ce:'',e:''},{s:l?l.he:'',e:''},{s:l?l.ee:'',e:''}]};st=0;show('add');stepR()}
+function u(){const v=D.v[st]={s:+$('s0').value,e:+$('s1').value};$('us').textContent='Расход: '+n3(v.e-v.s)+' '+NM[st][1]}
+function stepR(){
+  const a=$('add'),bk='<button class="bk" onclick="show(\'home\')">← Отмена</button>';
+  if(st<3){const v=D.v[st];
+    a.innerHTML=`${bk}<div class="card"><label>Месяц<input type="month" value="${D.m}" onchange="D.m=this.value"></label>
+    <h2>Шаг ${st+1} из 3: ${NM[st][0]}</h2>
+    <label>Начальное, ${NM[st][1]}<input id="s0" type="number" step="any" value="${v.s}" oninput="u()"></label>
+    <label>Конечное, ${NM[st][1]}<input id="s1" type="number" step="any" value="${v.e}" oninput="u()"></label>
+    <p id="us" class="cnt"></p><div class="row">${st?'<button onclick="st--;stepR()">Назад</button>':''}<button class="pr" style="margin:0" onclick="st++;stepR()">Далее</button></div></div>`;u()}
+  else{const r=calc(D.m,D.v);
+    a.innerHTML=`${bk}<div class="card"><h2>Расчёт за ${r.m}</h2><table>
+    <tr><td>Холодная ${n3(r.cu)} м³</td><td>${f(r.csum)} ₽</td></tr><tr><td>Горячая ${n3(r.hu)} м³</td><td>${f(r.hsum)} ₽</td></tr>
+    <tr><td>Водоотведение ${n3(r.wu)} м³</td><td>${f(r.wsum)} ₽</td></tr><tr><td>Электроэнергия ${n3(r.eu)} кВт·ч</td><td>${f(r.esum)} ₽</td></tr>
+    <tr><td>Лимит воды</td><td>${n3(r.lim)} м³</td></tr><tr><td>Превышение</td><td>${n3(r.ex)} м³</td></tr>
+    <tr><td><b>Итого</b></td><td><b>${f(r.tot)} ₽</b></td></tr></table>
+    <div class="row" style="margin-top:12px"><button onclick="st=2;stepR()">Назад</button><button class="pr" style="margin:0" onclick="saveRec()">Сохранить</button></div></div>`}
+}
+function saveRec(){const r=calc(D.m,D.v);R=R.filter(x=>x.m!=r.m).concat(r).sort((a,b)=>a.m<b.m?-1:1);save();show('home')}
+
+/* ===== Настройки ===== */
+const F=[['persons','Человек в квартире'],['limit','Лимит воды, л/чел/сутки'],['cold','Холодная (льготный), ₽/м³'],['coldFull','Холодная (полный), ₽/м³'],
+  ['heat','Подогрев (льготный), ₽/Гкал'],['heatFull','Подогрев (полный), ₽/Гкал'],['norm','Норматив подогрева, Гкал/м³'],['sewer','Водоотведение, ₽/м³'],['elec','Электроэнергия, ₽/кВт·ч']];
+function settings(){
+  $('set').innerHTML=`<button class="bk" onclick="show('home')">← Назад</button>
+  <div class="card"><h2>Тарифы и параметры</h2>${F.map(([k,l])=>`<label>${l}<input type="number" step="any" value="${S[k]}" oninput="S['${k}']=+this.value;save(0)"></label>`).join('')}
+  <label>URL JSON с тарифами (GitHub Gist, raw)<input value="${S.url}" oninput="S.url=this.value;save(0)"></label>
+  <button onclick="updT()">Обновить из интернета</button><p id="um"></p></div>
+  <div class="card"><h2>Оплата ЕРИП</h2>
+  <label>Лицевой счёт<input value="${S.account}" oninput="S.account=this.value;save(0)"></label>
+  <label>Код услуги<input value="${S.service}" oninput="S.service=this.value;save(0)"></label></div>
+  <div class="card"><h2>Данные</h2><label class="ck"><input type="checkbox" ${S.labels?'checked':''} onchange="S.labels=this.checked;save(0)"> Подписи значений на графике</label>
+  <div class="row"><button onclick="csv()">Скачать CSV</button><button onclick="expJ()">Экспорт JSON</button>
+  <button onclick="$('imp').click()">Импорт JSON</button><input id="imp" type="file" accept=".json" hidden onchange="impJ(this.files[0])"></div></div>
+  <div class="card"><h2>Напоминания</h2><div class="row"><button onclick="ics()">Календарь .ics</button><button onclick="notif()">Уведомления</button></div></div>
+  <div class="card"><h2>Google Drive</h2><div class="row"><button onclick="gConnect()">Подключить Google Drive</button><button onclick="gSync()">Синхронизировать сейчас</button><button onclick="gOff()">Отключить</button></div>
+  <p id="gs">${S.gd?'Подключено':'Не подключено'}</p></div>`;
+}
+async function updT(){const m=$('um');
+  try{const j=await(await fetch(S.url,{cache:'no-store'})).json();let n=0;
+    F.forEach(([k])=>{if(typeof j[k]=='number'){S[k]=j[k];n++}});if(!n)throw 0;save(0);settings();$('um').textContent='Тарифы обновлены ✅'}
+  catch(e){m.textContent='Не удалось обновить. Проверьте тарифы вручную'}}
+function csv(){
+  const H=['Дата','Хол. нач.','Хол. кон.','Хол. расход','Хол. сумма','Гор. нач.','Гор. кон.','Гор. расход','Гор. сумма','Водоотв. расход','Водоотв. сумма','Эл. нач.','Эл. кон.','Эл. расход','Эл. сумма','Лимит воды','Превышение','Итого'];
+  const rows=R.map(r=>[r.m,r.cs,r.ce,r.cu,r.csum,r.hs,r.he,r.hu,r.hsum,r.wu,r.wsum,r.es,r.ee,r.eu,r.esum,r.lim,r.ex,r.tot].map(v=>typeof v=='number'?String(+v.toFixed(4)).replace('.',','):v).join(';'));
+  dl('kvartplata.csv','\ufeff'+[H.join(';'),...rows].join('\n'),'text/csv')}
+function expJ(){dl('kvartplata.json',JSON.stringify({settings:S,records:R}),'application/json')}
+function impJ(file){const fr=new FileReader();fr.onload=()=>{const j=JSON.parse(fr.result);S={...DEF,...j.settings,gd:S.gd};R=j.records||[];save();show('home')};fr.readAsText(file)}
+function ics(){ // ежемесячно 24-го в 10:00 + будильник
+  const d=new Date(),dt=`${d.getFullYear()}${pad(d.getMonth()+1)}24T100000`;
+  dl('kvartplata.ics',['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Kvartplata//RU','BEGIN:VEVENT','UID:kvartplata-24@local','DTSTAMP:'+dt+'Z','DTSTART:'+dt,'DURATION:PT30M',
+  'RRULE:FREQ=MONTHLY;BYMONTHDAY=24','SUMMARY:Передать показания (квартплата)','BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:Передать показания','TRIGGER:PT0M','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n'),'text/calendar')}
+async function notify(t){const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration();reg?reg.showNotification('Квартплата',{body:t}):new Notification('Квартплата',{body:t})}
+function notif(){Notification.requestPermission().then(p=>p=='granted'&&notify('Уведомления включены'))}
+
+/* ===== QR-код (встроенный, байтовый режим, коррекция L, версии 1–6, маска 0) ===== */
+function qr(text){
+  const d=[...new TextEncoder().encode(text)],n=d.length,V=[[19,7,1],[34,10,1],[55,15,1],[80,20,1],[108,26,1],[136,18,2]];
+  let v=0;while(v<5&&V[v][0]<n+2)v++;const [dc,ec,bl]=V[v],size=21+4*v;
+  const bits=[],put=(x,l)=>{for(let i=l-1;i>=0;i--)bits.push(x>>i&1)};
+  put(4,4);put(n,8);d.forEach(b=>put(b,8));put(0,Math.min(4,dc*8-bits.length));while(bits.length%8)bits.push(0);
+  const cw=[];for(let i=0;i<bits.length;i+=8)cw.push(parseInt(bits.slice(i,i+8).join(''),2));
+  for(let p=0;cw.length<dc;p^=1)cw.push(p?0x11:0xEC);
+  // Рид-Соломон
+  const E=[],G=[];for(let i=0,x=1;i<255;i++){E[i]=x;G[x]=i;x<<=1;if(x>255)x^=285}
+  const mul=(a,b)=>a&&b?E[(G[a]+G[b])%255]:0;let g=[1];
+  for(let i=0;i<ec;i++){const q=[];for(let j=0;j<=g.length;j++)q[j]=(g[j]||0)^mul(g[j-1]||0,E[i]);g=q}
+  const blocks=[],ecs=[],per=dc/bl;
+  for(let b=0;b<bl;b++){const dat=cw.slice(b*per,(b+1)*per),r=Array(ec).fill(0);
+    dat.forEach(x=>{const k=x^r.shift();r.push(0);for(let i=0;i<ec;i++)r[i]^=mul(g[i+1],k)});blocks.push(dat);ecs.push(r)}
+  const out=[];for(let i=0;i<per;i++)blocks.forEach(b=>out.push(b[i]));for(let i=0;i<ec;i++)ecs.forEach(e=>out.push(e[i]));
+  const all=[];out.forEach(x=>{for(let i=7;i>=0;i--)all.push(x>>i&1)});
+  // Матрица
+  const m=[...Array(size)].map(()=>Array(size).fill(0)),rs=[...Array(size)].map(()=>Array(size).fill(0));
+  const set=(x,y,val)=>{if(x>=0&&y>=0&&x<size&&y<size){m[y][x]=val?1:0;rs[y][x]=1}};
+  [[0,0],[size-7,0],[0,size-7]].forEach(([cx,cy])=>{for(let dy=-1;dy<=7;dy++)for(let dx=-1;dx<=7;dx++){
+    const in7=dx>=0&&dx<=6&&dy>=0&&dy<=6;set(cx+dx,cy+dy,in7&&(dx%6==0||dy%6==0||(dx>=2&&dx<=4&&dy>=2&&dy<=4)))}});
+  for(let i=8;i<size-8;i++){set(i,6,i%2==0);set(6,i,i%2==0)}
+  if(v>0)for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)set(size-7+dx,size-7+dy,Math.max(Math.abs(dx),Math.abs(dy))!=1);
+  for(let i=0;i<9;i++){rs[8][i]=rs[i][8]=1}for(let i=0;i<8;i++){rs[8][size-1-i]=rs[size-1-i][8]=1}
+  // Данные зигзагом + маска 0
+  let k=0,up=true;
+  for(let x=size-1;x>0;x-=2){if(x==6)x--;
+    for(let j=0;j<size;j++){const y=up?size-1-j:j;
+      for(let c=0;c<2;c++){const xx=x-c;if(!rs[y][xx]){let b=k<all.length?all[k++]:0;if((xx+y)%2==0)b^=1;m[y][xx]=b}}}up=!up}
+  // Формат (уровень L, маска 0)
+  let rem=8;for(let i=0;i<10;i++)rem=(rem<<1)^((rem>>9)*0x537);const fmt=((8<<10)|rem)^0x5412,gb=i=>fmt>>i&1;
+  for(let i=0;i<=5;i++)set(8,i,gb(i));set(8,7,gb(6));set(8,8,gb(7));set(7,8,gb(8));for(let i=9;i<15;i++)set(14-i,8,gb(i));
+  for(let i=0;i<8;i++)set(size-1-i,8,gb(i));for(let i=8;i<15;i++)set(8,size-15+i,gb(i));set(8,size-8,1);
+  let p='';for(let y=0;y<size;y++)for(let x=0;x<size;x++)if(m[y][x])p+=`M${x+4} ${y+4}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${size+8} ${size+8}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${p}" fill="#000"/></svg>`;
+}
+
+/* ===== Google Drive (OAuth 2.0, appDataFolder) ===== */
+let gTok=null,gExp=0,gId=null;
+const gsi=()=>window.google&&google.accounts?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+const gst=t=>{const e=$('gs');if(e)e.textContent=t};
+function gAuth(prompt){return gsi().then(()=>new Promise((ok,no)=>google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,
+  callback:r=>{if(r.error)return no(r.error);gTok=r.access_token;gExp=Date.now()+r.expires_in*1000-60000;ok()},error_callback:no}).requestAccessToken({prompt})))}
+async function gF(url,o={}){if(!gTok||Date.now()>gExp)await gAuth('');o.headers={...o.headers,Authorization:'Bearer '+gTok};const r=await fetch(url,o);if(!r.ok)throw r.status;return r}
+async function gFind(){if(gId)return gId;const r=await(await gF("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&q="+encodeURIComponent("name='kvartplata.json'"))).json();return gId=r.files[0]?.id||null}
+async function gGet(){const id=await gFind();return id?(await gF(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json():null}
+async function gPush(){const id=await gFind(),body=JSON.stringify({settings:S,records:R,upd:S.upd});
+  if(id)return gF(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':'application/json'},body});
+  const bd='kvp'+Date.now(),meta=JSON.stringify({name:'kvartplata.json',parents:['appDataFolder']});
+  const r=await(await gF('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+bd},
+    body:`--${bd}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${bd}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${bd}--`})).json();gId=r.id}
+async function gSync(){ // облако новее или локально пусто → берём облако; иначе выгружаем
+  try{gst('Синхронизация…');const c=await gGet();
+    if(c&&(c.upd>S.upd||!R.length)){S={...DEF,...c.settings,gd:true,upd:c.upd};R=c.records||[];persist();applyTheme();if(!$('home').hidden)render()}else await gPush();
+    gst('Синхронизировано '+new Date().toLocaleTimeString())}catch(e){gst('Ошибка синхронизации ('+e+')')}}
+function gConnect(){gAuth('consent').then(()=>{S.gd=true;persist();gSync()}).catch(e=>gst('Не удалось подключиться ('+e+')'))}
+function gOff(){if(gTok&&window.google)google.accounts.oauth2.revoke(gTok);gTok=null;gId=null;S.gd=false;persist();gst('Не подключено')}
+
+/* ===== Запуск ===== */
+applyTheme();show('home');
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+{const d=new Date().getDate();if(window.Notification&&Notification.permission=='granted'&&(d==24||d==25)&&!R.some(r=>r.m==cmonth())&&!sessionStorage.n){sessionStorage.n=1;notify('Пора передать показания (до 25-го числа)')}}
+if(S.gd)gSync();
+</script></body></html>
